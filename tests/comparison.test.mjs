@@ -4,6 +4,16 @@ import { comparisonMetrics, latitudePaths } from '../src/comparison.mjs';
 import { readSharedView, sharedSearch } from '../src/share.mjs';
 const a = {id:1,name:'Kansas City',lat:39.1,lng:-94.58};
 const b = {id:2,name:'Melbourne',lat:-37.81,lng:144.96};
+test('equator is a single permanent closed 0-degree ring independent of exploration state', () => {
+  for (const primary of [null,a,{...a,lat:0}]) for (const comparison of [null,b]) for (const mirror of [true,false]) for (const band of [-60,0,39.1,75]) {
+    const equators = latitudePaths(primary,comparison,band,1,mirror).filter(p=>p.kind==='equator');
+    assert.equal(equators.length,1);
+    assert.equal(equators[0].points.length,361);
+    assert.ok(equators[0].points.every(point=>point.lat===0));
+    assert.equal(equators[0].points[0].lng,-180);
+    assert.equal(equators[0].points.at(-1).lng,180);
+  }
+});
 test('mirrored relationship uses absolute latitude, not signed difference or longitude', () => {
   const m = comparisonMetrics(a,b);
   assert.equal(m.mirrored,true); assert.ok(Math.abs(m.difference-1.29)<1e-10);

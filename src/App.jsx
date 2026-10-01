@@ -300,8 +300,8 @@ function App() {
             pathPoints="points"
             pathPointLat="lat"
             pathPointLng="lng"
-            pathColor={(d) => d.kind === 'comparison' ? CITY_COLORS.comparison : d.kind === 'selected' ? CITY_COLORS.primary : d.kind === 'mirror' ? '#70869c' : '#ad855b'}
-            pathStroke={(d) => d.kind === 'mirror' ? 0.6 : d.kind === 'band' || d.kind === 'scrub' ? 0.2 : 1.5}
+            pathColor={(d) => d.kind === 'comparison' ? CITY_COLORS.comparison : d.kind === 'selected' ? CITY_COLORS.primary : d.kind === 'equator' ? '#91aa9f' : d.kind === 'mirror' ? '#70869c' : '#ad855b'}
+            pathStroke={(d) => d.kind === 'equator' ? 0.8 : d.kind === 'mirror' ? 0.6 : d.kind === 'band' || d.kind === 'scrub' ? 0.2 : 1.5}
             pathDashLength={(d) => d.kind === 'mirror' ? 0.035 : 1}
             pathDashGap={(d) => d.kind === 'mirror' ? 0.02 : 0}
             pathPointAlt={0.014}

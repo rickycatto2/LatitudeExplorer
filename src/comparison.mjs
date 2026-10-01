@@ -9,8 +9,10 @@ export function comparisonMetrics(a, b) {
 }
 
 export function latitudePaths(selected, compare, latitude, tolerance, mirror) {
-  if (!selected) return [];
-  const paths = [{ kind: 'selected', points: ringAt(compare ? selected.lat : latitude) }];
+  // A permanent neutral reference, independent of selection, scrubbing and guides.
+  const paths = [{ kind: 'equator', points: ringAt(0) }];
+  if (!selected) return paths;
+  paths.push({ kind: 'selected', points: ringAt(compare ? selected.lat : latitude) });
   if (compare) paths.push({ kind: 'comparison', points: ringAt(compare.lat) });
   else if (mirror) paths.push({ kind: 'mirror', points: ringAt(-latitude) });
   paths.push({ kind: 'band', points: ringAt(Math.min(90, latitude + tolerance)) },
