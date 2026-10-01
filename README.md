@@ -98,6 +98,8 @@ Discovery results compare absolute latitude (`abs(abs(city.lat) - abs(bandLatitu
 
 ### Comparison UX
 
+Climate & Seasons charts are expanded by default (and can still be collapsed). Remove city B with the × beside its comparison-panel heading or globe chip, or the existing Clear comparison action. These all use the same clear operation, keeping the primary city and filters intact and updating the share URL/history.
+
 V2.1 retains all climate data, comparison context, monthly temperature/precipitation charts and existing daylight functionality in secondary disclosures. Latitude remains the lead interaction. A permanent solid equator reference at exactly 0° uses a muted sage stroke (0.8), lighter-weight than orange/blue city rings (1.5) and stronger than the dashed mirror guide (0.6). It is independent of mirror mode, selection and latitude scrubbing; city rings keep their actual positions on either side of it.
 
 Every result has a distinct **Compare** button: it keeps city A and sets/replaces city B. City-name clicks select the primary city. Both actual city latitude rings are rendered during comparison (orange A, blue B), independent of the optional mirrored guide or scrubbed discovery band. Opposite-hemisphere pairs compare absolute latitudes; the north–south equivalent is that difference × 111.195 km/degree, separate from the cities' great-circle separation. The A/B panel leads with these relationships, with population/elevation and collapsed supporting climate beneath. The full existing climate/daylight panel remains available in a secondary disclosure; no new date features are introduced.

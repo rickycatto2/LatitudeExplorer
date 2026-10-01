@@ -245,3 +245,11 @@ footer a:hover { text-decoration: underline; }
 .supporting-climate > summary { padding: 18px 0; cursor: pointer; color: #8ca99c; font-size: 12px; }
 .supporting-climate .climate-section { margin: 0; }
 @media (max-width: 620px) { .city-ring-legend { left: 16px; right: 16px; bottom: 35px; } .supporting-climate { margin: 0 16px 20px; } .ab-latitude { font-size: 16px; } }
+.ab-cities article { position: relative; }
+.ab-cities .city-b .ab-badge { display: block; padding-right: 30px; min-height: 20px; }
+.remove-comparison { position: absolute; right: -5px; top: 4px; width: 32px; height: 32px; border: 0; background: transparent; color: #86bfff; font-size: 24px; line-height: 1; cursor: pointer; border-radius: 4px; }
+.remove-comparison:hover { background: #86bfff17; }
+.comparison-chip-group { display: flex; align-items: stretch; min-width: 0; max-width: 100%; }
+.comparison-chip-group .comparison-chip { min-width: 0; border-radius: 7px 0 0 7px; }
+.chip-remove-comparison { flex-shrink: 0; width: 36px; min-height: 36px; border: 1px solid #86bfff55; border-left: 0; border-radius: 0 7px 7px 0; background: #0b1915e6; color: #86bfff; font-size: 22px; cursor: pointer; }
+.chip-remove-comparison:hover { background: #193242; }

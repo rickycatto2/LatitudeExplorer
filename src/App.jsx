@@ -25,6 +25,7 @@ function ComparisonPanel({ selected, compare, climate, onClear, onReplace, onSha
     <h1>Compare latitudes</h1>
     <div className="ab-cities">{[selected, compare].map((city, index) => <article key={city.id} className={index ? 'city-b' : 'city-a'}>
       <span className="ab-badge">{index ? 'B · COMPARISON' : 'A · PRIMARY'}</span>
+      {index === 1 && <button className="remove-comparison" aria-label={`Remove comparison city ${city.name}`} title="Remove comparison city" onClick={onClear}>×</button>}
       <h2>{city.name}</h2><p>{countryName(city.countryCode)}</p>
       <strong className="ab-latitude">{latitudeLabel(city.lat)}</strong>
       <small>Absolute latitude {Math.abs(city.lat).toFixed(2)}°</small>
@@ -228,6 +229,13 @@ function App() {
     setPanelOpen(true);
   };
 
+  const clearComparison = () => {
+    historyActionRef.current = 'push';
+    setCompare(null);
+    setComparing(false);
+    setActionMessage('Comparison removed.');
+  };
+
   const surprise = () => {
     const pair = surprisePair(cities, toleranceDegrees, minimumSeparationKm, Math.random, [selected?.id, compare?.id]);
     if (!pair) { setActionMessage('No pair qualifies. Widen latitude tolerance or reduce minimum separation.'); return; }
@@ -308,7 +316,7 @@ function App() {
             pathsTransitionDuration={0}
           /></Suspense></GlobeBoundary> : <div className="loading-globe">Loading real-world city data…</div>}
           {ready && <button className="rotation-toggle" onClick={() => { globeRef.current.controls().autoRotate = !rotating; setRotating(!rotating); }}>{rotating ? 'Ⅱ Pause rotation' : '▷ Rotate globe'}</button>}
-          {selected && <div className="city-ring-legend"><button className="selected-chip" onClick={() => { setPanelOpen(true); if (ready) globeRef.current.pointOfView({ lat: compare ? (selected.lat + compare.lat) / 2 : selected.lat, lng: selected.lng, altitude: compare ? Math.max(2.1, cameraAltitude) : cameraAltitude }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 500); }}><i />{compare && 'A · '}{selected.name}<span>{latitudeLabel(selected.lat)} ↗</span></button>{compare && <button className="selected-chip comparison-chip" onClick={() => setPanelOpen(true)}><i />B · {compare.name}<span>{latitudeLabel(compare.lat)} ↗</span></button>}</div>}
+          {selected && <div className="city-ring-legend"><button className="selected-chip" onClick={() => { setPanelOpen(true); if (ready) globeRef.current.pointOfView({ lat: compare ? (selected.lat + compare.lat) / 2 : selected.lat, lng: selected.lng, altitude: compare ? Math.max(2.1, cameraAltitude) : cameraAltitude }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 500); }}><i />{compare && 'A · '}{selected.name}<span>{latitudeLabel(selected.lat)} ↗</span></button>{compare && <div className="comparison-chip-group"><button className="selected-chip comparison-chip" onClick={() => setPanelOpen(true)}><i />B · {compare.name}<span>{latitudeLabel(compare.lat)} ↗</span></button><button className="chip-remove-comparison" aria-label={`Remove comparison city ${compare.name} from globe`} title="Remove comparison city" onClick={clearComparison}>×</button></div>}</div>}
           <div className="globe-hint">DRAG TO ROTATE <span>·</span> SCROLL TO ZOOM <span>·</span> SELECT A CITY</div>
         </div>
 
@@ -322,7 +330,7 @@ function App() {
           if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
         }}>
           <button ref={closePanelRef} className="panel-close" aria-label="Close details" onClick={() => { setPanelOpen(false); searchRef.current?.focus(); }}>×</button>
-          {selected && compare ? <ComparisonPanel selected={selected} compare={compare} climate={climate} onClear={() => { historyActionRef.current = 'push'; setCompare(null); setComparing(false); }} onReplace={() => { setComparing(true); setPanelOpen(false); searchRef.current?.focus(); }} onShare={share}/> : selected && <>
+          {selected && compare ? <ComparisonPanel selected={selected} compare={compare} climate={climate} onClear={clearComparison} onReplace={() => { setComparing(true); setPanelOpen(false); searchRef.current?.focus(); }} onShare={share}/> : selected && <>
             <p className="eyebrow">SELECTED CITY</p>
             <h1>{selected.name}</h1>
             <p className="country">{countryName(selected.countryCode)}</p>
@@ -387,7 +395,7 @@ function App() {
           <p className="dataset-note">Showing up to 36 of {number.format(matches.same.length)} same-hemisphere and {number.format(matches.mirror.length)} mirrored matches, from all 5,000 cities. Population filter affects globe markers.</p>
         </div>
       </section>
-      <details className="supporting-climate" id="supporting-climate"><summary>Supporting information · Climate & Seasons{compare ? ` · ${selected.name} / ${compare.name}` : ''}</summary><ClimatePanel selected={selected} compare={compare} climate={climate} climateError={climateError} layer={layer} setLayer={setLayer} date={date} setDate={setDate}/></details>
+      <details className="supporting-climate" id="supporting-climate" open><summary>Supporting information · Climate & Seasons{compare ? ` · ${selected.name} / ${compare.name}` : ''}</summary><ClimatePanel selected={selected} compare={compare} climate={climate} climateError={climateError} layer={layer} setLayer={setLayer} date={date} setDate={setDate}/></details>
       <footer><span>Latitude Explorer · V1</span><span>City data: <a href="https://www.geonames.org/" target="_blank" rel="noreferrer">GeoNames</a> · Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">Natural Earth</a></span><span>Earth is more connected than it looks.</span></footer>
     </main>
   );
