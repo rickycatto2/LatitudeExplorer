@@ -1,9 +1,10 @@
 import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { KM_PER_DEGREE, convertDistance, degreesFromDistance, latitudeMatches, absoluteLatitudeDifference, latitudeLabel, greatCircle, ringAt, normalizeSearch, escapeHtml } from './geo.mjs';
+import { KM_PER_DEGREE, convertDistance, degreesFromDistance, latitudeMatches, latitudeLabel, normalizeSearch, escapeHtml } from './geo.mjs';
 import { rankMatches, diversifyByCountry } from './ranking.mjs';
 import ClimatePanel from './ClimatePanel.jsx';
 import { readSharedView, sharedSearch } from './share.mjs';
 import { surprisePair } from './surprise.mjs';
+import { CITY_COLORS, comparisonMetrics, latitudePaths } from './comparison.mjs';
 
 const Globe = lazy(() => import('./GlobeView.jsx'));
 const number = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
@@ -15,6 +16,31 @@ function countryName(code) {
 
 function Stat({ label, children }) {
   return <div className="stat"><span>{label}</span><strong>{children}</strong></div>;
+}
+
+function ComparisonPanel({ selected, compare, climate, onClear, onReplace, onShare }) {
+  const metrics = comparisonMetrics(selected, compare);
+  return <div className="ab-panel">
+    <p className="eyebrow">LATITUDE COMPARISON</p>
+    <h1>Compare latitudes</h1>
+    <div className="ab-cities">{[selected, compare].map((city, index) => <article key={city.id} className={index ? 'city-b' : 'city-a'}>
+      <span className="ab-badge">{index ? 'B · COMPARISON' : 'A · PRIMARY'}</span>
+      <h2>{city.name}</h2><p>{countryName(city.countryCode)}</p>
+      <strong className="ab-latitude">{latitudeLabel(city.lat)}</strong>
+      <small>Absolute latitude {Math.abs(city.lat).toFixed(2)}°</small>
+    </article>)}</div>
+    <div className="latitude-relationship">
+      <span>{metrics.mirrored ? 'MIRROR LATITUDE DIFFERENCE' : 'LATITUDE DIFFERENCE'}</span>
+      <strong>{metrics.difference.toFixed(2)}°</strong>
+      <p>≈ {number.format(metrics.northSouthKm)} km / {number.format(convertDistance(metrics.northSouthKm, 'km', 'mi'))} mi north–south difference</p>
+      <small>{metrics.mirrored ? 'Compares absolute latitudes across the equator.' : 'Compares actual latitudes in the same hemisphere.'} Not the distance between the cities.</small>
+    </div>
+    <div className="geographic-distance"><span>GREAT-CIRCLE GEOGRAPHIC DISTANCE</span><b>{number.format(metrics.geographicKm)} km / {number.format(convertDistance(metrics.geographicKm, 'km', 'mi'))} mi</b></div>
+    <div className="ab-facts"><div className="ab-facts-heading"><span>City details</span><b className="city-a">A</b><b className="city-b">B</b></div>{['population','elevation'].map((field) => <div key={field}><span>{field === 'population' ? 'Population' : 'Elevation'}</span>{[selected,compare].map((city) => <b key={city.id}>{city[field] == null ? 'Not reported' : `${number.format(city[field])}${field === 'elevation' ? ' m' : ''}`}</b>)}</div>)}</div>
+    <details className="ab-climate"><summary>Supporting climate context</summary>{[selected,compare].map((city,index) => <p key={city.id}><b className={index ? 'city-b' : 'city-a'}>{city.name}</b> · {climate?.records[city.id]?.koppen || 'Climate unavailable'} <small>(regional Köppen estimate)</small></p>)}<a href="#supporting-climate" onClick={() => { document.getElementById('supporting-climate').open = true; }}>Monthly temperature & precipitation below ↓</a></details>
+    <div className="comparison-actions"><button onClick={onClear}>Clear comparison</button><button onClick={onReplace}>Replace city B</button><button onClick={onShare}>↗ Share comparison</button></div>
+    <p className="compare-help">Click Compare on any result to replace B. City names select a new primary city.</p>
+  </div>;
 }
 
 class GlobeBoundary extends Component {
@@ -41,7 +67,7 @@ function App() {
   const [compare, setCompare] = useState(null);
   const [query, setQuery] = useState('');
   const [latitude, setLatitude] = useState(0);
-  const [mirror, setMirror] = useState(false);
+  const [mirror, setMirror] = useState(true);
   const [unit, setUnit] = useState('mi');
   const [distance, setDistance] = useState(100);
   const [minimumSeparationKm, setMinimumSeparationKm] = useState(500);
@@ -57,9 +83,14 @@ function App() {
   const [rotating, setRotating] = useState(false);
   const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 900px)').matches);
   const closePanelRef = useRef();
+  const historyActionRef = useRef('replace');
 
   const restoreView = (cityData) => {
-    const view = readSharedView(window.location.search, cityData);
+    let sessionMirror = true;
+    try { sessionMirror = sessionStorage.getItem('latitude-mirror') !== '0'; } catch { /* Storage may be disabled. */ }
+    const view = readSharedView(window.location.search, cityData, sessionMirror);
+    historyActionRef.current = 'replace';
+    setComparing(false); setQuery(''); setSearchOpen(false);
     setSelected(view.selected); setCompare(view.compare); setLatitude(view.latitude);
     setUnit(view.unit); setDistance(view.distance); setMinimumSeparationKm(view.minimumSeparationKm);
     setPopulation(view.population); setMirror(view.mirror); setResultsMode(view.resultsMode); setLayer(view.layer);
@@ -81,7 +112,10 @@ function App() {
   useEffect(() => {
     if (!selected) return;
     const search = sharedSearch({ selected, compare, latitude, unit, distance, minimumSeparationKm, population, mirror, resultsMode, layer, date });
-    window.history.replaceState(null, '', `${window.location.pathname}${search}${window.location.hash}`);
+    const url = `${window.location.pathname}${search}${window.location.hash}`;
+    if (window.location.search !== search) window.history[historyActionRef.current === 'push' ? 'pushState' : 'replaceState'](null, '', url);
+    historyActionRef.current = 'replace';
+    try { sessionStorage.setItem('latitude-mirror', mirror ? '1' : '0'); } catch { /* Sharing still works without storage. */ }
     setShareFallback('');
   }, [selected, compare, latitude, unit, distance, minimumSeparationKm, population, mirror, resultsMode, layer, date]);
 
@@ -131,13 +165,13 @@ function App() {
 
   useEffect(() => {
     if (!ready || !selected) return;
-    globeRef.current.pointOfView({ lat: selected.lat, lng: selected.lng, altitude: cameraAltitude }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 900);
-  }, [selected, ready, cameraAltitude]);
+    globeRef.current.pointOfView({ lat: compare ? (selected.lat + compare.lat) / 2 : selected.lat, lng: selected.lng, altitude: compare ? Math.max(2.1, cameraAltitude) : cameraAltitude }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 900);
+  }, [selected, compare, ready, cameraAltitude]);
 
   useEffect(() => {
     if (!ready) return;
     const controls = globeRef.current.controls();
-    controls.autoRotate = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    controls.autoRotate = !compare && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     setRotating(controls.autoRotate);
     controls.autoRotateSpeed = 0.25;
     controls.minDistance = 120;
@@ -158,15 +192,11 @@ function App() {
     if (term.length < 2) return [];
     return cities.filter((city) => normalizeSearch(`${city.name} ${city.asciiName} ${countryName(city.countryCode)}`).includes(term)).slice(0, 7);
   }, [query, cities]);
-  const paths = useMemo(() => [
-    { kind: 'selected', points: ringAt(latitude) },
-    { kind: 'band', points: ringAt(Math.min(90, latitude + toleranceDegrees)) },
-    { kind: 'band', points: ringAt(Math.max(-90, latitude - toleranceDegrees)) },
-    ...(mirror ? [{ kind: 'mirror', points: ringAt(-latitude) }] : [])
-  ], [latitude, mirror, toleranceDegrees]);
+  const paths = useMemo(() => latitudePaths(selected, compare, latitude, toleranceDegrees, mirror), [selected, compare, latitude, mirror, toleranceDegrees]);
 
   const selectCity = (city) => {
     if (comparing) { beginCompare(city); setComparing(false); setQuery(''); setSearchOpen(false); return; }
+    historyActionRef.current = 'push';
     setSelected(city);
     if (compare?.id === city.id) setCompare(null);
     setLatitude(city.lat);
@@ -191,16 +221,20 @@ function App() {
 
   const beginCompare = (city) => {
     if (!selected || city.id === selected.id) return;
+    historyActionRef.current = 'push';
     setCompare(city);
+    setComparing(false);
+    if (ready) { globeRef.current.controls().autoRotate = false; setRotating(false); }
     setPanelOpen(true);
   };
 
   const surprise = () => {
     const pair = surprisePair(cities, toleranceDegrees, minimumSeparationKm, Math.random, [selected?.id, compare?.id]);
     if (!pair) { setActionMessage('No pair qualifies. Widen latitude tolerance or reduce minimum separation.'); return; }
+    historyActionRef.current = 'push';
     setSelected(pair[0]); setLatitude(pair[0].lat); setQuery(''); setSearchOpen(false);
     if (ready) { globeRef.current.controls().autoRotate = false; setRotating(false); }
-    setComparing(false); setCompare(pair[1]); setMirror(pair[0].lat * pair[1].lat < 0);
+    setComparing(false); setCompare(pair[1]);
     setPanelOpen(false);
     setActionMessage(`${pair[0].name} ↔ ${pair[1].name} · ${pair[0].lat * pair[1].lat < 0 ? 'Mirrored latitude' : 'Same hemisphere'}`);
   };
@@ -257,8 +291,8 @@ function App() {
             pointsData={shownCities}
             pointLat="lat"
             pointLng="lng"
-            pointAltitude={(d) => d.id === selected?.id ? 0.075 : 0.025}
-            pointRadius={(d) => d.id === selected?.id ? 0.65 : Math.max(0.2, Math.log10(d.population) / 20)}
+            pointAltitude={(d) => d.id === selected?.id || d.id === compare?.id ? 0.075 : 0.025}
+            pointRadius={(d) => d.id === selected?.id || d.id === compare?.id ? 0.65 : Math.max(0.2, Math.log10(d.population) / 20)}
             pointColor={(d) => d.id === selected?.id ? '#ffb86b' : d.id === compare?.id ? '#86bfff' : matchKinds.get(d.id) === 'same' ? '#90f4cc' : matchKinds.get(d.id) === 'mirror' ? '#7a9eff' : '#85b4a0'}
             pointLabel={(d) => `<b>${escapeHtml(d.name)}</b><br/>${escapeHtml(countryName(d.countryCode))} · ${latitudeLabel(d.lat)}`}
             onPointClick={selectCity}
@@ -266,29 +300,29 @@ function App() {
             pathPoints="points"
             pathPointLat="lat"
             pathPointLng="lng"
-            pathColor={(d) => d.kind === 'mirror' ? '#7a9eff' : d.kind === 'band' ? '#ad855b' : '#ffb66b'}
-            pathStroke={(d) => d.kind === 'mirror' ? 0.7 : d.kind === 'band' ? 0.2 : 1.5}
+            pathColor={(d) => d.kind === 'comparison' ? CITY_COLORS.comparison : d.kind === 'selected' ? CITY_COLORS.primary : d.kind === 'mirror' ? '#70869c' : '#ad855b'}
+            pathStroke={(d) => d.kind === 'mirror' ? 0.6 : d.kind === 'band' || d.kind === 'scrub' ? 0.2 : 1.5}
             pathDashLength={(d) => d.kind === 'mirror' ? 0.035 : 1}
             pathDashGap={(d) => d.kind === 'mirror' ? 0.02 : 0}
             pathPointAlt={0.014}
             pathsTransitionDuration={0}
           /></Suspense></GlobeBoundary> : <div className="loading-globe">Loading real-world city data…</div>}
           {ready && <button className="rotation-toggle" onClick={() => { globeRef.current.controls().autoRotate = !rotating; setRotating(!rotating); }}>{rotating ? 'Ⅱ Pause rotation' : '▷ Rotate globe'}</button>}
-          {selected && <button className="selected-chip" onClick={() => { setPanelOpen(true); if (ready) globeRef.current.pointOfView({ lat: selected.lat, lng: selected.lng, altitude: cameraAltitude }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 500); }}><i />{selected.name}<span>{latitudeLabel(selected.lat)} ↗</span></button>}
+          {selected && <div className="city-ring-legend"><button className="selected-chip" onClick={() => { setPanelOpen(true); if (ready) globeRef.current.pointOfView({ lat: compare ? (selected.lat + compare.lat) / 2 : selected.lat, lng: selected.lng, altitude: compare ? Math.max(2.1, cameraAltitude) : cameraAltitude }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 500); }}><i />{compare && 'A · '}{selected.name}<span>{latitudeLabel(selected.lat)} ↗</span></button>{compare && <button className="selected-chip comparison-chip" onClick={() => setPanelOpen(true)}><i />B · {compare.name}<span>{latitudeLabel(compare.lat)} ↗</span></button>}</div>}
           <div className="globe-hint">DRAG TO ROTATE <span>·</span> SCROLL TO ZOOM <span>·</span> SELECT A CITY</div>
         </div>
 
         {mobile && panelOpen && <button className="panel-backdrop" aria-label="Dismiss city details" onClick={() => setPanelOpen(false)} />}
         <aside className={`side-panel ${panelOpen ? 'open' : ''}`} inert={mobile && !panelOpen} aria-label="City details" onKeyDown={(event) => {
           if (!mobile || !panelOpen || event.key !== 'Tab') return;
-          const buttons = event.currentTarget.querySelectorAll('button');
+          const buttons = [...event.currentTarget.querySelectorAll('button, a, summary, input')].filter((element) => element.getClientRects().length > 0);
           const first = buttons[0];
           const last = buttons[buttons.length - 1];
           if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
           if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
         }}>
           <button ref={closePanelRef} className="panel-close" aria-label="Close details" onClick={() => { setPanelOpen(false); searchRef.current?.focus(); }}>×</button>
-          {selected && <>
+          {selected && compare ? <ComparisonPanel selected={selected} compare={compare} climate={climate} onClear={() => { historyActionRef.current = 'push'; setCompare(null); setComparing(false); }} onReplace={() => { setComparing(true); setPanelOpen(false); searchRef.current?.focus(); }} onShare={share}/> : selected && <>
             <p className="eyebrow">SELECTED CITY</p>
             <h1>{selected.name}</h1>
             <p className="country">{countryName(selected.countryCode)}</p>
@@ -304,12 +338,6 @@ function App() {
               {comparing ? 'Cancel comparison selection' : '＋ Choose a city to compare'}
             </button>
             {comparing && <p className="compare-help">Search or select a marker to choose your second city.</p>}
-            {compare && <div className="compare-card">
-              <div><span>COMPARING WITH</span><strong>{compare.name}</strong><small>{countryName(compare.countryCode)}</small></div>
-              <button aria-label="Remove comparison" onClick={() => setCompare(null)}>×</button>
-              <p><b>{latitudeLabel(compare.lat)}</b><span>{absoluteLatitudeDifference(compare.lat, selected.lat).toFixed(2)}° absolute latitude apart</span></p>
-              <p><b>{number.format(greatCircle(selected, compare))} km</b><span>great-circle distance</span></p>
-            </div>}
           </>}
         </aside>
       </section>
@@ -321,7 +349,7 @@ function App() {
           <div className="quick-latitudes">
             {[-60, -30, 0, 30, 60].map((lat) => <button className={Math.abs(latitude - lat) < 0.1 ? 'active' : ''} key={lat} onClick={() => exploreLatitude(lat)}>{lat === 0 ? 'EQUATOR' : `${Math.abs(lat)}°${lat > 0 ? 'N' : 'S'}`}</button>)}
           </div>
-          <label className="switch-row"><span><b>Mirror ring on globe</b><small>Results always include both hemispheres</small></span><input aria-label="Mirror latitude" type="checkbox" checked={mirror} onChange={(e) => setMirror(e.target.checked)} /><i /></label>
+          <label className="switch-row"><span><b>Mirror ring on globe</b><small>{compare ? 'Actual city rings stay visible while comparing' : 'Results always include both hemispheres'}</small></span><input aria-label="Mirror latitude" type="checkbox" checked={mirror} onChange={(e) => setMirror(e.target.checked)} /><i /></label>
         </div>
 
         <div className="filters control-card">
@@ -350,7 +378,7 @@ function App() {
               <div className="nearby-list">
                 {visibleMatches[kind].map(({ city, separationKm }) => <div key={city.id}>
                   <button className="city-select" onClick={() => selectCity(city)}><span className="city-dot"/><span><b>{city.name}</b><small>{countryName(city.countryCode)}</small></span><span className="match-metrics"><em>{latitudeLabel(city.lat)}</em><small>{number.format(convertDistance(separationKm, 'km', unit))} {unit} away</small></span></button>
-                  <button className="add-compare" aria-label={`Compare ${selected?.name} with ${city.name}`} onClick={() => beginCompare(city)}>＋</button>
+                  <button className={`add-compare ${compare?.id === city.id ? 'active' : ''}`} aria-label={`Compare ${selected?.name} with ${city.name}`} aria-pressed={compare?.id === city.id} onClick={() => beginCompare(city)}>{compare?.id === city.id ? 'Comparing' : 'Compare'}</button>
                 </div>)}
                 {matches[kind].length === 0 && <p className="empty-band">No matches. Widen latitude tolerance or reduce geographic separation.</p>}
               </div>
@@ -359,7 +387,7 @@ function App() {
           <p className="dataset-note">Showing up to 36 of {number.format(matches.same.length)} same-hemisphere and {number.format(matches.mirror.length)} mirrored matches, from all 5,000 cities. Population filter affects globe markers.</p>
         </div>
       </section>
-      <ClimatePanel selected={selected} compare={compare} climate={climate} climateError={climateError} layer={layer} setLayer={setLayer} date={date} setDate={setDate}/>
+      <details className="supporting-climate" id="supporting-climate"><summary>Supporting information · Climate & Seasons{compare ? ` · ${selected.name} / ${compare.name}` : ''}</summary><ClimatePanel selected={selected} compare={compare} climate={climate} climateError={climateError} layer={layer} setLayer={setLayer} date={date} setDate={setDate}/></details>
       <footer><span>Latitude Explorer · V1</span><span>City data: <a href="https://www.geonames.org/" target="_blank" rel="noreferrer">GeoNames</a> · Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">Natural Earth</a></span><span>Earth is more connected than it looks.</span></footer>
     </main>
   );

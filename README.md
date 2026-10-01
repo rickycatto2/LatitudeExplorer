@@ -96,6 +96,12 @@ Discovery results compare absolute latitude (`abs(abs(city.lat) - abs(bandLatitu
 
 ## Architecture
 
+### Comparison UX
+
+Every result has a distinct **Compare** button: it keeps city A and sets/replaces city B. City-name clicks select the primary city. Both actual city latitude rings are rendered during comparison (orange A, blue B), independent of the optional mirrored guide or scrubbed discovery band. Opposite-hemisphere pairs compare absolute latitudes; the north–south equivalent is that difference × 111.195 km/degree, separate from the cities' great-circle separation. The A/B panel leads with these relationships, with population/elevation and collapsed supporting climate beneath. The full existing climate/daylight panel remains available in a secondary disclosure; no new date features are introduced.
+
+Mirror guide defaults on and is retained in session storage where available. URLs explicitly encode both on and off states (`mirror=1/0`), with URL state overriding the session preference. Stable GeoNames IDs restore both cities. City selection, comparison replacement and clearing add browser history entries; continuous filter/slider updates replace the current entry. Back/forward restores the saved view without creating another history entry.
+
 - React + Vite
 - `react-globe.gl` / Three.js for globe rendering
 - Static GeoJSON and compact JSON datasets in `public/data`
