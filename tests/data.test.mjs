@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { latitudeMatches, degreesFromDistance } from '../src/geo.mjs';
 
 const cities = JSON.parse(fs.readFileSync(new URL('../public/data/cities.json', import.meta.url)));
 const boundaries = JSON.parse(fs.readFileSync(new URL('../public/data/countries.geojson', import.meta.url)));
@@ -27,4 +28,15 @@ test('country geometry includes real polygon features and is compact', () => {
   assert.ok(boundaries.features.length > 170);
   assert.ok(boundaries.features.every((f) => ['Polygon', 'MultiPolygon'].includes(f.geometry.type)));
   assert.ok(fs.statSync(new URL('../public/data/countries.geojson', import.meta.url)).size < 500000);
+});
+
+test('Kansas City discovers Melbourne by mirrored latitude with the default separation filter', () => {
+  const origin = cities.find((c) => c.name === 'Kansas City' && c.countryCode === 'US');
+  assert.ok(origin);
+  const matches = latitudeMatches(cities, origin, origin.lat, degreesFromDistance(100, 'mi'), 500);
+  const melbourne = matches.mirror.find((r) => r.city.name === 'Melbourne' && r.city.countryCode === 'AU');
+  assert.ok(melbourne);
+  assert.ok(melbourne.separationKm > 10000);
+  assert.ok(matches.same.every((r) => r.separationKm >= 500));
+  assert.ok(![...matches.same, ...matches.mirror].some((r) => r.city.id === origin.id));
 });

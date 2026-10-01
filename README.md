@@ -9,7 +9,8 @@ Latitude Explorer is an interactive globe for discovering cities that share the 
 - Scrubbable latitude control with live nearby-city results
 - Configurable north/south tolerance in miles or kilometers
 - Optional mirrored-latitude ring
-- Same-latitude and mirror-latitude result tabs
+- Always-visible same-hemisphere and mirrored-latitude result groups using absolute latitude
+- Adjustable minimum great-circle separation from the selected city (default 500 km / approximately 311 mi), independent of latitude tolerance
 - City population, elevation, equator distance, and time zone details
 - Two-city comparison with latitude and great-circle distance
 - Population filter for globe marker density
@@ -57,6 +58,8 @@ The app has no server-side runtime or secrets.
 The reproducible transform used to create both data files is in `scripts/prepare-data.mjs`. Download and unzip `cities15000.zip` into `.data/` (the script expects `.data/cities15000.txt`), then run `npm run prepare-data`. The raw export is intentionally excluded from Git. Normal development and deployment use the committed files and require no data download or API key.
 
 Population numbers reflect GeoNames records, which can include districts or boroughs and vary in census date and definition. Missing reported elevation is shown as a dash; model-derived terrain elevation is not substituted. Latitude-band distance is approximate north/south distance on a spherical Earth, while two-city distance is great-circle distance, not a travel route. Boundaries are generalized for a world-scale visualization and may omit very small islands.
+
+Discovery results compare absolute latitude (`abs(abs(city.lat) - abs(bandLatitude))`) and always show both hemisphere groups, up to 36 most populous matches in each. For example, Kansas City can discover Melbourne within the default 100 mi latitude tolerance. The mirror switch controls only the globe ring. The selected city is excluded from its own results; minimum geographic separation applies to both groups and is measured from the selected city even when scrubbing the band. Switching MI/KM preserves both filters' physical distances. Near the equator, each city appears in only one hemisphere group. Population filtering still controls globe marker density separately.
 
 ## Architecture
 

@@ -131,10 +131,16 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
 .compare-help, .dataset-note, .empty-band { color: #7f9b8f; font-size: 10px; line-height: 1.7; }
 .dataset-note { font-size: 9px; margin-bottom: 0; }
 .suggestions p { font-size: 12px; color: #90a99e; padding: 10px; }
-.band-tabs { display: flex; gap: 5px; margin: -10px 0 12px; }
-.band-tabs button { flex: 1; border: 1px solid var(--line); background: transparent; padding: 8px; font: 9px DM Mono; color: #799287; cursor: pointer; border-radius: 4px; }
-.band-tabs button.active { border-color: #ffb66b66; color: var(--orange); background: #ffb66b0c; }
-.band-tabs button.active.mirror { border-color: #7a9eff66; color: #98b4ff; background: #7a9eff0c; }
+.separation-filter { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 19px; }
+.separation-filter .control-heading { gap: 12px; margin-bottom: 12px; }
+.separation-filter .control-heading > span { font-size: 8px; line-height: 1.6; }
+.separation-filter .control-heading > b { white-space: nowrap; }
+.result-groups { display: grid; gap: 16px; }
+.result-group h2 { display: flex; justify-content: space-between; gap: 8px; margin: 0 0 6px; padding-bottom: 8px; border-bottom: 1px solid var(--line); color: var(--mint); font: 500 9px DM Mono; }
+.result-group .nearby-list { max-height: 150px; }
+.result-group.mirror h2, .result-group.mirror .city-select:hover b { color: #98b4ff; }
+.result-group.mirror .city-dot { background: #98b4ff; box-shadow: 0 0 6px #98b4ff; }
+.match-metrics { text-align: right; }
 .selected-chip { position: absolute; bottom: 50px; left: 24px; max-width: calc(100% - 48px); display: flex; align-items: center; gap: 10px; border: 1px solid #ffb66b44; border-radius: 7px; padding: 10px 13px; background: #0b1915e6; font-size: 11px; cursor: pointer; }
 .selected-chip i { width: 5px; height: 5px; background: var(--orange); border-radius: 50%; }
 .selected-chip span { color: var(--orange); font: 9px DM Mono; }

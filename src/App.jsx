@@ -1,5 +1,5 @@
 import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { KM_PER_DEGREE, convertDistance, degreesFromDistance, inLatitudeBand, latitudeLabel, greatCircle, ringAt, normalizeSearch, escapeHtml } from './geo.mjs';
+import { KM_PER_DEGREE, convertDistance, degreesFromDistance, latitudeMatches, absoluteLatitudeDifference, latitudeLabel, greatCircle, ringAt, normalizeSearch, escapeHtml } from './geo.mjs';
 
 const Globe = lazy(() => import('./GlobeView.jsx'));
 const number = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
@@ -34,13 +34,13 @@ function App() {
   const [mirror, setMirror] = useState(false);
   const [unit, setUnit] = useState('mi');
   const [distance, setDistance] = useState(100);
+  const [minimumSeparationKm, setMinimumSeparationKm] = useState(500);
   const [population, setPopulation] = useState(500000);
   const [dimensions, setDimensions] = useState({ width: 800, height: 700 });
   const cameraAltitude = Math.max(1.85, dimensions.height / dimensions.width * 1.8);
   const [panelOpen, setPanelOpen] = useState(false);
   const [loadingError, setLoadingError] = useState('');
   const [ready, setReady] = useState(false);
-  const [resultBand, setResultBand] = useState('same');
   const [comparing, setComparing] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [rotating, setRotating] = useState(false);
@@ -113,9 +113,8 @@ function App() {
 
   const toleranceDegrees = degreesFromDistance(distance, unit);
   const shownCities = useMemo(() => cities.filter((city) => city.population >= population || city.id === selected?.id || city.id === compare?.id), [cities, population, selected, compare]);
-  const bandLatitude = mirror && resultBand === 'mirror' ? -latitude : latitude;
-  const allNearby = useMemo(() => cities.filter((city) => inLatitudeBand(city, bandLatitude, toleranceDegrees)), [cities, bandLatitude, toleranceDegrees]);
-  const nearby = allNearby.slice(0, 36);
+  const matches = useMemo(() => latitudeMatches(cities, selected, latitude, toleranceDegrees, minimumSeparationKm), [cities, selected, latitude, toleranceDegrees, minimumSeparationKm]);
+  const matchKinds = useMemo(() => new Map(Object.entries(matches).flatMap(([kind, rows]) => rows.map(({ city }) => [city.id, kind]))), [matches]);
   const suggestions = useMemo(() => {
     const term = normalizeSearch(query.trim());
     if (term.length < 2) return [];
@@ -135,7 +134,6 @@ function App() {
     setLatitude(city.lat);
     setQuery('');
     setSearchOpen(false);
-    setResultBand('same');
     if (mobile) setPanelOpen(true);
     if (ready) { globeRef.current.controls().autoRotate = false; setRotating(false); }
   };
@@ -204,7 +202,7 @@ function App() {
             pointLng="lng"
             pointAltitude={(d) => d.id === selected?.id ? 0.075 : 0.025}
             pointRadius={(d) => d.id === selected?.id ? 0.65 : Math.max(0.2, Math.log10(d.population) / 20)}
-            pointColor={(d) => d.id === selected?.id ? '#ffb86b' : d.id === compare?.id ? '#86bfff' : inLatitudeBand(d, latitude, toleranceDegrees) ? '#90f4cc' : mirror && inLatitudeBand(d, -latitude, toleranceDegrees) ? '#7a9eff' : '#85b4a0'}
+            pointColor={(d) => d.id === selected?.id ? '#ffb86b' : d.id === compare?.id ? '#86bfff' : matchKinds.get(d.id) === 'same' ? '#90f4cc' : matchKinds.get(d.id) === 'mirror' ? '#7a9eff' : '#85b4a0'}
             pointLabel={(d) => `<b>${escapeHtml(d.name)}</b><br/>${escapeHtml(countryName(d.countryCode))} · ${latitudeLabel(d.lat)}`}
             onPointClick={selectCity}
             pathsData={paths}
@@ -238,7 +236,7 @@ function App() {
             <h1>{selected.name}</h1>
             <p className="country">{countryName(selected.countryCode)}</p>
             <div className="coordinate"><span>{latitudeLabel(selected.lat)}</span><span>{Math.abs(selected.lng).toFixed(2)}° {selected.lng >= 0 ? 'E' : 'W'}</span></div>
-            {Math.abs(latitude - selected.lat) > .025 && <button className="return-latitude" onClick={() => { setLatitude(selected.lat); setResultBand('same'); }}>Return band to {selected.name}</button>}
+            {Math.abs(latitude - selected.lat) > .025 && <button className="return-latitude" onClick={() => setLatitude(selected.lat)}>Return band to {selected.name}</button>}
             <div className="stats-grid">
               <Stat label="FROM EQUATOR">{number.format(Math.abs(selected.lat) * KM_PER_DEGREE)} km</Stat>
               <Stat label="POPULATION">{number.format(selected.population)}</Stat>
@@ -252,7 +250,7 @@ function App() {
             {compare && <div className="compare-card">
               <div><span>COMPARING WITH</span><strong>{compare.name}</strong><small>{countryName(compare.countryCode)}</small></div>
               <button aria-label="Remove comparison" onClick={() => setCompare(null)}>×</button>
-              <p><b>{latitudeLabel(compare.lat)}</b><span>{Math.abs(compare.lat - selected.lat).toFixed(2)}° latitude apart</span></p>
+              <p><b>{latitudeLabel(compare.lat)}</b><span>{absoluteLatitudeDifference(compare.lat, selected.lat).toFixed(2)}° absolute latitude apart</span></p>
               <p><b>{number.format(greatCircle(selected, compare))} km</b><span>great-circle distance</span></p>
             </div>}
           </>}
@@ -266,7 +264,7 @@ function App() {
           <div className="quick-latitudes">
             {[-60, -30, 0, 30, 60].map((lat) => <button className={Math.abs(latitude - lat) < 0.1 ? 'active' : ''} key={lat} onClick={() => exploreLatitude(lat)}>{lat === 0 ? 'EQUATOR' : `${Math.abs(lat)}°${lat > 0 ? 'N' : 'S'}`}</button>)}
           </div>
-          <label className="switch-row"><span><b>Mirror latitude</b><small>Show {latitudeLabel(-latitude)} in the opposite hemisphere</small></span><input aria-label="Mirror latitude" type="checkbox" checked={mirror} onChange={(e) => { setMirror(e.target.checked); if (!e.target.checked) setResultBand('same'); }} /><i /></label>
+          <label className="switch-row"><span><b>Mirror ring on globe</b><small>Results always include both hemispheres</small></span><input aria-label="Mirror latitude" type="checkbox" checked={mirror} onChange={(e) => setMirror(e.target.checked)} /><i /></label>
         </div>
 
         <div className="filters control-card">
@@ -274,20 +272,29 @@ function App() {
           <div className="distance-readout"><strong>± {number.format(distance)}</strong><span>{unit} north / south</span></div>
           <input aria-label="Latitude tolerance" type="range" min="0" max={unit === 'mi' ? 500 : convertDistance(500, 'mi', 'km')} step="any" value={distance} onChange={(e) => setDistance(Number(e.target.value))} />
           <p className="equivalence">Equivalent to <b>± {toleranceDegrees.toFixed(2)}°</b> of latitude</p>
+          <div className="separation-filter">
+            <div className="control-heading"><span>MINIMUM GEOGRAPHIC SEPARATION</span><b>{number.format(convertDistance(minimumSeparationKm, 'km', unit))} {unit}</b></div>
+            <input aria-label="Minimum geographic separation" aria-valuetext={`${number.format(convertDistance(minimumSeparationKm, 'km', unit))} ${unit}`} type="range" min="0" max={convertDistance(10000, 'km', unit)} step="any" value={convertDistance(minimumSeparationKm, 'km', unit)} onChange={(e) => setMinimumSeparationKm(convertDistance(Number(e.target.value), unit, 'km'))} />
+            <p className="equivalence">Great-circle distance from <b>{selected?.name || 'the selected city'}</b>. Separate from latitude tolerance.</p>
+          </div>
           <div className="population-filter"><div><span>MINIMUM POPULATION</span><b>{population === 0 ? 'All cities' : `${number.format(population)}+`}</b></div><input aria-label="Minimum city population" type="range" min="0" max="6" step="1" value={[0,50000,100000,250000,500000,1000000,3000000].indexOf(population)} onChange={(e) => setPopulation([0,50000,100000,250000,500000,1000000,3000000][Number(e.target.value)])} /></div>
         </div>
 
         <div className="nearby control-card">
-          <div className="control-heading"><span>CITIES IN THIS BAND</span><b>{number.format(allNearby.length)} FOUND</b></div>
-          {mirror && <div className="band-tabs"><button className={resultBand === 'same' ? 'active' : ''} onClick={() => setResultBand('same')}>Same · {latitudeLabel(latitude, 1)}</button><button className={resultBand === 'mirror' ? 'active mirror' : ''} onClick={() => setResultBand('mirror')}>Mirror · {latitudeLabel(-latitude, 1)}</button></div>}
-          <div className="nearby-list">
-            {nearby.map((city) => <div className={city.id === selected?.id ? 'selected' : ''} key={city.id}>
-              <button className="city-select" onClick={() => selectCity(city)}><span className="city-dot"/><span><b>{city.name}</b><small>{countryName(city.countryCode)}</small></span><em>{latitudeLabel(city.lat)}</em></button>
-              {selected && city.id !== selected.id && <button className="add-compare" aria-label={`Compare ${selected.name} with ${city.name}`} onClick={() => beginCompare(city)}>＋</button>}
-            </div>)}
-            {nearby.length === 0 && <p className="empty-band">No cities in this band. Widen the tolerance or try another latitude.</p>}
+          <div className="control-heading"><span>LATITUDE MATCHES</span><b>{number.format(matches.same.length + matches.mirror.length)} FOUND</b></div>
+          <div className="result-groups">
+            {['same', 'mirror'].map((kind) => <section key={kind} className={`result-group ${kind}`} aria-label={kind === 'same' ? 'Same-hemisphere matches' : 'Mirrored-latitude matches'}>
+              <h2><span>{latitude === 0 ? (kind === 'same' ? 'Northern / equator' : 'Southern') : kind === 'same' ? 'Same hemisphere' : 'Mirrored latitude'} · {latitudeLabel(kind === 'same' ? latitude : -latitude, 1)}</span><b>{number.format(matches[kind].length)}</b></h2>
+              <div className="nearby-list">
+                {matches[kind].slice(0, 36).map(({ city, separationKm }) => <div key={city.id}>
+                  <button className="city-select" onClick={() => selectCity(city)}><span className="city-dot"/><span><b>{city.name}</b><small>{countryName(city.countryCode)}</small></span><span className="match-metrics"><em>{latitudeLabel(city.lat)}</em><small>{number.format(convertDistance(separationKm, 'km', unit))} {unit} away</small></span></button>
+                  <button className="add-compare" aria-label={`Compare ${selected?.name} with ${city.name}`} onClick={() => beginCompare(city)}>＋</button>
+                </div>)}
+                {matches[kind].length === 0 && <p className="empty-band">No matches. Widen latitude tolerance or reduce geographic separation.</p>}
+              </div>
+            </section>)}
           </div>
-          <p className="dataset-note">{allNearby.length > 36 ? 'Showing the 36 most populous matches. ' : ''}Results include all 5,000 cities; population filter affects globe markers.</p>
+          <p className="dataset-note">Up to 36 most populous matches per hemisphere, from all 5,000 cities. Population filter affects globe markers.</p>
         </div>
       </section>
       <footer><span>Latitude Explorer · V1</span><span>City data: <a href="https://www.geonames.org/" target="_blank" rel="noreferrer">GeoNames</a> · Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">Natural Earth</a></span><span>Earth is more connected than it looks.</span></footer>

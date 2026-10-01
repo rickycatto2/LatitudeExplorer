@@ -5,6 +5,23 @@ export const MI_PER_DEGREE = KM_PER_DEGREE / KM_PER_MILE;
 export const degreesFromDistance = (distance, unit) => distance / (unit === 'mi' ? MI_PER_DEGREE : KM_PER_DEGREE);
 export const convertDistance = (distance, from, to) => from === to ? distance : from === 'mi' ? distance * KM_PER_MILE : distance / KM_PER_MILE;
 export const inLatitudeBand = (city, latitude, tolerance) => Math.abs(city.lat - latitude) <= tolerance + 1e-9;
+export const absoluteLatitudeDifference = (a, b) => Math.abs(Math.abs(a) - Math.abs(b));
+
+// Distance is measured from the selected city, even while the latitude band is scrubbed.
+// Group by hemisphere so overlapping bands near the equator never duplicate a city.
+export function latitudeMatches(cities, origin, latitude, tolerance, minimumSeparationKm) {
+  const groups = { same: [], mirror: [] };
+  if (!origin) return groups;
+  for (const city of cities) {
+    if (city.id === origin.id || absoluteLatitudeDifference(city.lat, latitude) > tolerance + 1e-9) continue;
+    const separationKm = greatCircle(origin, city);
+    if (separationKm + 1e-9 < minimumSeparationKm) continue;
+    const sameHemisphere = (city.lat >= 0) === (latitude >= 0);
+    groups[sameHemisphere ? 'same' : 'mirror'].push({ city, separationKm });
+  }
+  for (const matches of Object.values(groups)) matches.sort((a, b) => b.city.population - a.city.population);
+  return groups;
+}
 
 export function latitudeLabel(lat, precision = 2) {
   if (Math.abs(lat) < 0.005) return '0°';
