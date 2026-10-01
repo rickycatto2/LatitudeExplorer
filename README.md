@@ -1,6 +1,8 @@
-# Latitude Explorer
+# Surprising Parallels
 
-Latitude Explorer is an interactive globe for discovering cities that share the same latitude—and the surprising places mirrored across the equator. V1 is a static React app designed to deploy cleanly to Cloudflare Pages.
+Surprising Parallels is an interactive globe for discovering cities that share the same latitude—and the surprising places mirrored across the equator. It is a static React app designed to deploy cleanly to Cloudflare Pages. The repository remains named `LatitudeExplorer`.
+
+The compact **Surprising Parallels** carousel includes twelve editorial pairings, resolved by stable GeoNames IDs from the existing dataset (including New York City, London UK, Madrid Spain, and Kansas City Missouri). Coordinates, latitude differences, and north–south equivalents are calculated from those records using the normal comparison helpers. Selecting a card reuses the existing pair-loading workflow, keeps discovery filters/mirror preference intact, and updates the share URL and browser history. Curated picks are not algorithmically ranked for surprisingness or filtered by the discovery sliders. The existing filter-aware Surprise me action is unchanged. The collapsed About section contains the author's supplied copy and is accessible from the toolbar without replacing the globe.
 
 ## Features
 

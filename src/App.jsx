@@ -5,6 +5,8 @@ import ClimatePanel from './ClimatePanel.jsx';
 import { readSharedView, sharedSearch } from './share.mjs';
 import { surprisePair } from './surprise.mjs';
 import { CITY_COLORS, comparisonMetrics, latitudePaths } from './comparison.mjs';
+import CuratedParallels from './CuratedParallels.jsx';
+import About from './About.jsx';
 
 const Globe = lazy(() => import('./GlobeView.jsx'));
 const number = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
@@ -236,15 +238,19 @@ function App() {
     setActionMessage('Comparison removed.');
   };
 
-  const surprise = () => {
-    const pair = surprisePair(cities, toleranceDegrees, minimumSeparationKm, Math.random, [selected?.id, compare?.id]);
-    if (!pair) { setActionMessage('No pair qualifies. Widen latitude tolerance or reduce minimum separation.'); return; }
+  const loadPair = (pair) => {
     historyActionRef.current = 'push';
     setSelected(pair[0]); setLatitude(pair[0].lat); setQuery(''); setSearchOpen(false);
     if (ready) { globeRef.current.controls().autoRotate = false; setRotating(false); }
     setComparing(false); setCompare(pair[1]);
     setPanelOpen(false);
     setActionMessage(`${pair[0].name} ↔ ${pair[1].name} · ${pair[0].lat * pair[1].lat < 0 ? 'Mirrored latitude' : 'Same hemisphere'}`);
+  };
+
+  const surprise = () => {
+    const pair = surprisePair(cities, toleranceDegrees, minimumSeparationKm, Math.random, [selected?.id, compare?.id]);
+    if (!pair) { setActionMessage('No pair qualifies. Widen latitude tolerance or reduce minimum separation.'); return; }
+    loadPair(pair);
   };
 
   const share = async () => {
@@ -255,9 +261,9 @@ function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <a className="brand" href="#top" aria-label="Latitude Explorer home">
+        <a className="brand" href="#top" aria-label="Surprising Parallels home">
           <span className="brand-mark" aria-hidden="true"><i /></span>
-          <span>LATITUDE<em>EXPLORER</em></span>
+          <span>SURPRISING<em>PARALLELS</em></span>
         </a>
         <div className="search-wrap">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg>
@@ -273,7 +279,7 @@ function App() {
         <div className="top-actions"><span className="live-dot" /> LIVE GLOBE <button className="mobile-details" onClick={() => setPanelOpen(true)}>Details</button></div>
       </header>
 
-      <div className="discovery-toolbar"><span>{compare ? `${selected?.name} ↔ ${compare.name}` : 'Discover unexpected connections across the globe.'}</span><div><button disabled={!selected} onClick={surprise}>✦ Surprise me</button><button disabled={!selected} onClick={share}>↗ Share view</button></div></div>
+      <div className="discovery-toolbar"><span>{compare ? `${selected?.name} ↔ ${compare.name}` : 'Discover unexpected connections across the globe.'}</span><div><a className="about-link" href="#about" onClick={() => { document.getElementById('about').open = true; }}>About</a><button disabled={!selected} onClick={surprise}>✦ Surprise me</button><button disabled={!selected} onClick={share}>↗ Share view</button></div></div>
       {actionMessage && <p className="action-message" role="status">{actionMessage}</p>}
       {shareFallback && <input className="share-link" aria-label="Shareable view URL" readOnly value={shareFallback} onFocus={(e) => e.target.select()}/>}
 
@@ -395,8 +401,10 @@ function App() {
           <p className="dataset-note">Showing up to 36 of {number.format(matches.same.length)} same-hemisphere and {number.format(matches.mirror.length)} mirrored matches, from all 5,000 cities. Population filter affects globe markers.</p>
         </div>
       </section>
+      <CuratedParallels cities={cities} selected={selected} compare={compare} onSelect={(pair) => { loadPair(pair); stageRef.current?.scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',block:'start'}); }}/>
       <details className="supporting-climate" id="supporting-climate" open><summary>Supporting information · Climate & Seasons{compare ? ` · ${selected.name} / ${compare.name}` : ''}</summary><ClimatePanel selected={selected} compare={compare} climate={climate} climateError={climateError} layer={layer} setLayer={setLayer} date={date} setDate={setDate}/></details>
-      <footer><span>Latitude Explorer · V1</span><span>City data: <a href="https://www.geonames.org/" target="_blank" rel="noreferrer">GeoNames</a> · Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">Natural Earth</a></span><span>Earth is more connected than it looks.</span></footer>
+      <About/>
+      <footer><span>Surprising Parallels · V2.1</span><span>City data: <a href="https://www.geonames.org/" target="_blank" rel="noreferrer">GeoNames</a> · Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">Natural Earth</a></span><span>Earth is more connected than it looks.</span></footer>
     </main>
   );
 }
