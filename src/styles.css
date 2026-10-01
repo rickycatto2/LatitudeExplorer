@@ -141,6 +141,10 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
 .result-group.mirror h2, .result-group.mirror .city-select:hover b { color: #98b4ff; }
 .result-group.mirror .city-dot { background: #98b4ff; box-shadow: 0 0 6px #98b4ff; }
 .match-metrics { text-align: right; }
+.results-mode { display: flex; gap: 5px; margin-top: -8px; }
+.results-mode button { flex: 1; border: 1px solid var(--line); background: transparent; padding: 8px; font: 10px DM Mono; color: #799287; cursor: pointer; border-radius: 4px; }
+.results-mode button.active { border-color: #91f5cb66; color: var(--mint); background: #91f5cb0c; }
+.mode-explanation { color: #7f9b8f; font-size: 10px; line-height: 1.6; margin: 10px 0 16px; }
 .selected-chip { position: absolute; bottom: 50px; left: 24px; max-width: calc(100% - 48px); display: flex; align-items: center; gap: 10px; border: 1px solid #ffb66b44; border-radius: 7px; padding: 10px 13px; background: #0b1915e6; font-size: 11px; cursor: pointer; }
 .selected-chip i { width: 5px; height: 5px; background: var(--orange); border-radius: 50%; }
 .selected-chip span { color: var(--orange); font: 9px DM Mono; }

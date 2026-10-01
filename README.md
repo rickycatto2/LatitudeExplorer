@@ -10,6 +10,7 @@ Latitude Explorer is an interactive globe for discovering cities that share the 
 - Configurable north/south tolerance in miles or kilometers
 - Optional mirrored-latitude ring
 - Always-visible same-hemisphere and mirrored-latitude result groups using absolute latitude
+- Default Discover mode diversifies matches by country; All matches shows the same base ranking without diversification
 - Adjustable minimum great-circle separation from the selected city (default 500 km / approximately 311 mi), independent of latitude tolerance
 - City population, elevation, equator distance, and time zone details
 - Two-city comparison with latitude and great-circle distance
@@ -59,7 +60,15 @@ The reproducible transform used to create both data files is in `scripts/prepare
 
 Population numbers reflect GeoNames records, which can include districts or boroughs and vary in census date and definition. Missing reported elevation is shown as a dash; model-derived terrain elevation is not substituted. Latitude-band distance is approximate north/south distance on a spherical Earth, while two-city distance is great-circle distance, not a travel route. Boundaries are generalized for a world-scale visualization and may omit very small islands.
 
-Discovery results compare absolute latitude (`abs(abs(city.lat) - abs(bandLatitude))`) and always show both hemisphere groups, up to 36 most populous matches in each. For example, Kansas City can discover Melbourne within the default 100 mi latitude tolerance. The mirror switch controls only the globe ring. The selected city is excluded from its own results; minimum geographic separation applies to both groups and is measured from the selected city even when scrubbing the band. Switching MI/KM preserves both filters' physical distances. Near the equator, each city appears in only one hemisphere group. Population filtering still controls globe marker density separately.
+Discovery results compare absolute latitude (`abs(abs(city.lat) - abs(bandLatitude))`) and always show both hemisphere groups, up to 36 ranked matches in each. For example, Kansas City can discover Melbourne within the default 100 mi latitude tolerance. The mirror switch controls only the globe ring. The selected city is excluded from its own results; minimum geographic separation applies to both groups and is measured from the selected city even when scrubbing the band. Switching MI/KM preserves both filters' physical distances. Near the equator, each city appears in only one hemisphere group. Population filtering still controls globe marker density separately.
+
+### Results ranking
+
+`src/geo.mjs` determines eligibility; `src/ranking.mjs` independently scores and diversifies the qualifying matches. The country-neutral base score combines 65% latitude closeness within the chosen tolerance with 35% logarithmic population prominence. Great-circle separation remains a qualifying threshold rather than a bonus for increasingly distant cities. Ties resolve by latitude difference, population, then stable city ID. The weights and population-prominence function are isolated for future tuning or a notability signal.
+
+**Discover** (default) runs country rounds independently within each hemisphere: each country's best-ranked match first, each country's second match next, then third matches, and so on. Base order is preserved within each round. This normally limits a country to two appearances in the first ten when enough countries have qualifying matches; sparse pools fill with the remaining cities. All countries follow the same rule, with no exceptions or country-specific score weights. Diversification happens before the visible 36-result limit, so a less-populous country's top match is not prematurely discarded.
+
+**All matches** uses the exact same base ranking without country rounds. Mode changes do not change eligibility, match counts, underlying city data, or the latitude/separation filters. Both hemisphere groups remain visible in both modes.
 
 ## Architecture
 

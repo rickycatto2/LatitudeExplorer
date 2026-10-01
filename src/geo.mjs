@@ -19,7 +19,6 @@ export function latitudeMatches(cities, origin, latitude, tolerance, minimumSepa
     const sameHemisphere = (city.lat >= 0) === (latitude >= 0);
     groups[sameHemisphere ? 'same' : 'mirror'].push({ city, separationKm });
   }
-  for (const matches of Object.values(groups)) matches.sort((a, b) => b.city.population - a.city.population);
   return groups;
 }
 

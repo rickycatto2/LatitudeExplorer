@@ -1,5 +1,6 @@
 import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { KM_PER_DEGREE, convertDistance, degreesFromDistance, latitudeMatches, absoluteLatitudeDifference, latitudeLabel, greatCircle, ringAt, normalizeSearch, escapeHtml } from './geo.mjs';
+import { rankMatches, diversifyByCountry } from './ranking.mjs';
 
 const Globe = lazy(() => import('./GlobeView.jsx'));
 const number = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
@@ -35,6 +36,7 @@ function App() {
   const [unit, setUnit] = useState('mi');
   const [distance, setDistance] = useState(100);
   const [minimumSeparationKm, setMinimumSeparationKm] = useState(500);
+  const [resultsMode, setResultsMode] = useState('discover');
   const [population, setPopulation] = useState(500000);
   const [dimensions, setDimensions] = useState({ width: 800, height: 700 });
   const cameraAltitude = Math.max(1.85, dimensions.height / dimensions.width * 1.8);
@@ -114,6 +116,8 @@ function App() {
   const toleranceDegrees = degreesFromDistance(distance, unit);
   const shownCities = useMemo(() => cities.filter((city) => city.population >= population || city.id === selected?.id || city.id === compare?.id), [cities, population, selected, compare]);
   const matches = useMemo(() => latitudeMatches(cities, selected, latitude, toleranceDegrees, minimumSeparationKm), [cities, selected, latitude, toleranceDegrees, minimumSeparationKm]);
+  const rankedMatches = useMemo(() => Object.fromEntries(Object.entries(matches).map(([kind, rows]) => [kind, rankMatches(rows, latitude, toleranceDegrees)])), [matches, latitude, toleranceDegrees]);
+  const visibleMatches = useMemo(() => Object.fromEntries(Object.entries(rankedMatches).map(([kind, rows]) => [kind, (resultsMode === 'discover' ? diversifyByCountry(rows) : rows).slice(0, 36)])), [rankedMatches, resultsMode]);
   const matchKinds = useMemo(() => new Map(Object.entries(matches).flatMap(([kind, rows]) => rows.map(({ city }) => [city.id, kind]))), [matches]);
   const suggestions = useMemo(() => {
     const term = normalizeSearch(query.trim());
@@ -282,11 +286,16 @@ function App() {
 
         <div className="nearby control-card">
           <div className="control-heading"><span>LATITUDE MATCHES</span><b>{number.format(matches.same.length + matches.mirror.length)} FOUND</b></div>
+          <div className="results-mode" role="group" aria-label="Results mode">
+            <button aria-pressed={resultsMode === 'discover'} className={resultsMode === 'discover' ? 'active' : ''} title="Prioritizes geographic variety so one country doesn’t dominate the results." onClick={() => setResultsMode('discover')}>Discover</button>
+            <button aria-pressed={resultsMode === 'all'} className={resultsMode === 'all' ? 'active' : ''} onClick={() => setResultsMode('all')}>All matches</button>
+          </div>
+          <p className="mode-explanation">{resultsMode === 'discover' ? 'Prioritizes geographic variety so one country doesn’t dominate the results.' : 'Ranks by latitude closeness and population, without country diversification.'}</p>
           <div className="result-groups">
             {['same', 'mirror'].map((kind) => <section key={kind} className={`result-group ${kind}`} aria-label={kind === 'same' ? 'Same-hemisphere matches' : 'Mirrored-latitude matches'}>
               <h2><span>{latitude === 0 ? (kind === 'same' ? 'Northern / equator' : 'Southern') : kind === 'same' ? 'Same hemisphere' : 'Mirrored latitude'} · {latitudeLabel(kind === 'same' ? latitude : -latitude, 1)}</span><b>{number.format(matches[kind].length)}</b></h2>
               <div className="nearby-list">
-                {matches[kind].slice(0, 36).map(({ city, separationKm }) => <div key={city.id}>
+                {visibleMatches[kind].map(({ city, separationKm }) => <div key={city.id}>
                   <button className="city-select" onClick={() => selectCity(city)}><span className="city-dot"/><span><b>{city.name}</b><small>{countryName(city.countryCode)}</small></span><span className="match-metrics"><em>{latitudeLabel(city.lat)}</em><small>{number.format(convertDistance(separationKm, 'km', unit))} {unit} away</small></span></button>
                   <button className="add-compare" aria-label={`Compare ${selected?.name} with ${city.name}`} onClick={() => beginCompare(city)}>＋</button>
                 </div>)}
@@ -294,7 +303,7 @@ function App() {
               </div>
             </section>)}
           </div>
-          <p className="dataset-note">Up to 36 most populous matches per hemisphere, from all 5,000 cities. Population filter affects globe markers.</p>
+          <p className="dataset-note">Showing up to 36 of {number.format(matches.same.length)} same-hemisphere and {number.format(matches.mirror.length)} mirrored matches, from all 5,000 cities. Population filter affects globe markers.</p>
         </div>
       </section>
       <footer><span>Latitude Explorer · V1</span><span>City data: <a href="https://www.geonames.org/" target="_blank" rel="noreferrer">GeoNames</a> · Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">Natural Earth</a></span><span>Earth is more connected than it looks.</span></footer>
