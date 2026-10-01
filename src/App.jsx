@@ -1,6 +1,9 @@
 import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { KM_PER_DEGREE, convertDistance, degreesFromDistance, latitudeMatches, absoluteLatitudeDifference, latitudeLabel, greatCircle, ringAt, normalizeSearch, escapeHtml } from './geo.mjs';
 import { rankMatches, diversifyByCountry } from './ranking.mjs';
+import ClimatePanel from './ClimatePanel.jsx';
+import { readSharedView, sharedSearch } from './share.mjs';
+import { surprisePair } from './surprise.mjs';
 
 const Globe = lazy(() => import('./GlobeView.jsx'));
 const number = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
@@ -27,6 +30,12 @@ function App() {
   const stageRef = useRef();
   const searchRef = useRef();
   const [cities, setCities] = useState([]);
+  const [climate, setClimate] = useState(null);
+  const [climateError, setClimateError] = useState('');
+  const [layer, setLayer] = useState('climate');
+  const [date, setDate] = useState(() => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`; });
+  const [actionMessage, setActionMessage] = useState('');
+  const [shareFallback, setShareFallback] = useState('');
   const [land, setLand] = useState([]);
   const [selected, setSelected] = useState(null);
   const [compare, setCompare] = useState(null);
@@ -48,6 +57,33 @@ function App() {
   const [rotating, setRotating] = useState(false);
   const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 900px)').matches);
   const closePanelRef = useRef();
+
+  const restoreView = (cityData) => {
+    const view = readSharedView(window.location.search, cityData);
+    setSelected(view.selected); setCompare(view.compare); setLatitude(view.latitude);
+    setUnit(view.unit); setDistance(view.distance); setMinimumSeparationKm(view.minimumSeparationKm);
+    setPopulation(view.population); setMirror(view.mirror); setResultsMode(view.resultsMode); setLayer(view.layer);
+    if (view.date) setDate(view.date);
+  };
+
+  useEffect(() => {
+    fetch('/data/climate.json').then((r) => r.ok ? r.json() : Promise.reject()).then(setClimate)
+      .catch(() => setClimateError('Climate data could not be loaded. Refresh to retry; latitude discovery and daylight still work.'));
+  }, []);
+
+  useEffect(() => {
+    if (!cities.length) return;
+    const restore = () => restoreView(cities);
+    window.addEventListener('popstate', restore);
+    return () => window.removeEventListener('popstate', restore);
+  }, [cities]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const search = sharedSearch({ selected, compare, latitude, unit, distance, minimumSeparationKm, population, mirror, resultsMode, layer, date });
+    window.history.replaceState(null, '', `${window.location.pathname}${search}${window.location.hash}`);
+    setShareFallback('');
+  }, [selected, compare, latitude, unit, distance, minimumSeparationKm, population, mirror, resultsMode, layer, date]);
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 900px)');
@@ -79,9 +115,7 @@ function App() {
     ]).then(([cityData, geo]) => {
       setCities(cityData);
       setLand(geo.features);
-      const initial = cityData.find((city) => city.name === 'Chicago') || cityData[0];
-      setSelected(initial);
-      setLatitude(initial.lat);
+      restoreView(cityData);
     }).catch(() => setLoadingError('The map data could not be loaded. Please refresh to try again.'));
   }, []);
 
@@ -161,6 +195,21 @@ function App() {
     setPanelOpen(true);
   };
 
+  const surprise = () => {
+    const pair = surprisePair(cities, toleranceDegrees, minimumSeparationKm, Math.random, [selected?.id, compare?.id]);
+    if (!pair) { setActionMessage('No pair qualifies. Widen latitude tolerance or reduce minimum separation.'); return; }
+    setSelected(pair[0]); setLatitude(pair[0].lat); setQuery(''); setSearchOpen(false);
+    if (ready) { globeRef.current.controls().autoRotate = false; setRotating(false); }
+    setComparing(false); setCompare(pair[1]); setMirror(pair[0].lat * pair[1].lat < 0);
+    setPanelOpen(false);
+    setActionMessage(`${pair[0].name} ↔ ${pair[1].name} · ${pair[0].lat * pair[1].lat < 0 ? 'Mirrored latitude' : 'Same hemisphere'}`);
+  };
+
+  const share = async () => {
+    try { await navigator.clipboard.writeText(window.location.href); setActionMessage('Link copied — your cities, filters and active layer are included.'); }
+    catch { setShareFallback(window.location.href); setActionMessage('Copy this link to share your view.'); }
+  };
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -181,6 +230,10 @@ function App() {
         </div>
         <div className="top-actions"><span className="live-dot" /> LIVE GLOBE <button className="mobile-details" onClick={() => setPanelOpen(true)}>Details</button></div>
       </header>
+
+      <div className="discovery-toolbar"><span>{compare ? `${selected?.name} ↔ ${compare.name}` : 'Discover unexpected connections across the globe.'}</span><div><button disabled={!selected} onClick={surprise}>✦ Surprise me</button><button disabled={!selected} onClick={share}>↗ Share view</button></div></div>
+      {actionMessage && <p className="action-message" role="status">{actionMessage}</p>}
+      {shareFallback && <input className="share-link" aria-label="Shareable view URL" readOnly value={shareFallback} onFocus={(e) => e.target.select()}/>}
 
       <section className="workspace" id="top">
         <div className="globe-stage" ref={stageRef}>
@@ -306,6 +359,7 @@ function App() {
           <p className="dataset-note">Showing up to 36 of {number.format(matches.same.length)} same-hemisphere and {number.format(matches.mirror.length)} mirrored matches, from all 5,000 cities. Population filter affects globe markers.</p>
         </div>
       </section>
+      <ClimatePanel selected={selected} compare={compare} climate={climate} climateError={climateError} layer={layer} setLayer={setLayer} date={date} setDate={setDate}/>
       <footer><span>Latitude Explorer · V1</span><span>City data: <a href="https://www.geonames.org/" target="_blank" rel="noreferrer">GeoNames</a> · Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">Natural Earth</a></span><span>Earth is more connected than it looks.</span></footer>
     </main>
   );

@@ -27,3 +27,10 @@ INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
 OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
 TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
+
+## Climate & Seasons additions
+
+- **NASA POWER / MERRA-2**: NASA Langley Research Center POWER Project; funded by NASA Applied Sciences within the Earth Science Division. [Source](https://power.larc.nasa.gov/), [bulk datastore](https://nasa-power.s3.us-west-2.amazonaws.com/index.html), [CC BY 4.0 license](https://nasa-power.s3.us-west-2.amazonaws.com/LICENSE.txt). Climatology 2001–2020, nearest native 0.5° × 0.625° cells. Adaptations: monthly temperature rounded to 0.1°C, corrected daily precipitation converted to monthly totals and rounded to 0.1 mm, derived Köppen estimates. Where available, grid terrain elevation from point responses is retained separately from GeoNames reported elevation. NASA does not endorse this application; data is supplied as-is without warranties.
+- **Natural Earth 1:110m coastline**, public domain, [source file](https://github.com/nvkelso/natural-earth-vector/blob/master/geojson/ne_110m_coastline.geojson): spherical ocean-coast distances rounded to kilometers. Generalized coastline can omit small islands; lakes are not ocean coastlines.
+- **Köppen–Geiger**: derived algorithm following [Peel, Finlayson & McMahon (2007)](https://hess.copernicus.org/articles/11/1633/2007/) with 0°C C/D threshold. This is an estimate based on coarse NASA normals, not a redistribution of the paper's climate map.
+- **Daylight**: [NOAA solar equations](https://gml.noaa.gov/grad/solcalc/solareqns.PDF), fractional-year declination and 90.833° sunrise/sunset zenith. Calculated locally; not a date-specific observation. Horizon, terrain, weather and elevation effects are excluded.

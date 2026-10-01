@@ -17,7 +17,7 @@ Latitude Explorer is an interactive globe for discovering cities that share the 
 - Population filter for globe marker density
 - Responsive desktop and mobile layouts
 
-Climate, daylight, and date-based features are intentionally outside V1. The city model includes time zone data and the UI is organized into discrete controls so those layers can be added later without replacing the core latitude interaction.
+The **Climate & Seasons** layer compares monthly mean temperature and precipitation for one or two cities, alongside estimated Köppen–Geiger climate, available elevation, approximate coastal/inland context, and seasonal temperature swing. **Daylight** calculates approximate sunrise-to-sunset day length; its date input and yearly slider are hidden outside that mode. **Surprise me** chooses a same- or mirrored-latitude pair while honoring latitude tolerance and minimum separation. Share view copies a URL restoring cities, comparison, band, filters, result mode, and active layer (plus date in Daylight).
 
 ## Local development
 
@@ -58,7 +58,31 @@ The app has no server-side runtime or secrets.
 
 The reproducible transform used to create both data files is in `scripts/prepare-data.mjs`. Download and unzip `cities15000.zip` into `.data/` (the script expects `.data/cities15000.txt`), then run `npm run prepare-data`. The raw export is intentionally excluded from Git. Normal development and deployment use the committed files and require no data download or API key.
 
-Population numbers reflect GeoNames records, which can include districts or boroughs and vary in census date and definition. Missing reported elevation is shown as a dash; model-derived terrain elevation is not substituted. Latitude-band distance is approximate north/south distance on a spherical Earth, while two-city distance is great-circle distance, not a travel route. Boundaries are generalized for a world-scale visualization and may omit very small islands.
+Population numbers reflect GeoNames records, which can include districts or boroughs and vary in census date and definition. Missing reported elevation is shown as a dash in city details. The climate panel may show a separately labeled NASA regional terrain estimate when available, never passing that off as a reported city elevation. Latitude-band distance is approximate north/south distance on a spherical Earth, while two-city distance is great-circle distance, not a travel route. Boundaries are generalized for a world-scale visualization and may omit very small islands.
+
+### Climate, seasons and daylight sources
+
+All 5,000 cities have precomputed monthly series in `public/data/climate.json`, loaded asynchronously; there are no runtime climate API calls. [NASA POWER](https://power.larc.nasa.gov/) / MERRA-2 climatology covers **2001–2020**, sampled at the nearest native **0.5° × 0.625°** cell. Temperature is monthly mean air temperature at 2 m in °C. Corrected precipitation (mm/day) is multiplied by climatological month length (February 28.25 days) to get mm/month. These are coarse regional normals, not city station observations, current weather, or forecasts. Nearby settlements can share a grid cell; mountainous/coastal/island microclimates are not resolved.
+
+NASA's public [bulk Zarr datastore](https://nasa-power.s3.us-west-2.amazonaws.com/index.html) carries [CC BY 4.0](https://nasa-power.s3.us-west-2.amazonaws.com/LICENSE.txt). Attribution: NASA Langley Research Center POWER Project, funded by NASA Applied Sciences; derived from MERRA-2. Data has been sampled, rounded, converted to monthly precipitation totals, and classified by this project. No NASA endorsement is implied; data is provided as-is. Coast distances use the public-domain [Natural Earth 1:110m coastline](https://github.com/nvkelso/natural-earth-vector/blob/master/geojson/ne_110m_coastline.geojson), with spherical segment distances. Inland/coastal is basic ocean proximity (100 km threshold), not a declaration of maritime/continental climate; lakes are not ocean coastlines and small islands may be absent.
+
+Köppen–Geiger types are **derived estimates**, using [Peel et al. (2007)](https://hess.copernicus.org/articles/11/1633/2007/) thresholds and the 0°C temperate/continental boundary. They are not the published high-resolution Köppen map. Warmest/coolest months and temperature swing are displayed without presuming northern-hemisphere seasons. The [NOAA solar equations](https://gml.noaa.gov/grad/solcalc/solareqns.PDF) provide day length, including polar day/night, with a 90.833° sunrise/sunset zenith; local horizon, terrain, weather and elevation effects are excluded.
+
+To regenerate climate, install Python `numpy` and `numcodecs` in an isolated environment, then run `python scripts/fetch-climate-bulk.py`. It downloads only the two parameters' 24 global monthly chunks from NASA's documented bulk store, caching them in ignored `.data/bulk/`, then creates a nearest-cell cache. Download the Natural Earth coastline linked above into `.data/coastline.geojson` and run `npm run prepare-climate`. Node, not Python, generates the committed app dataset. Normal builds require neither Python nor network data requests. `scripts/fetch-climate.mjs` is an optional point-service alternative with at most five concurrent requests and an immediate stop on rate limiting; prefer the bulk method for all cities.
+
+### Optional local Cloudflare tunnel
+
+The requested **https://latitude.pixelwood.co** uses a dedicated `latitude-explorer` tunnel, separate from existing tunnels. The production static server binds only to `127.0.0.1:4180` and serves `dist`; it never exposes Vite's development server or the checkout. Only this hostname routes to the origin; all other ingress requests get 404. Tunnel credentials, configuration and logs live in ignored `.local/` and must never be committed. The public website requires no login; share links contain only public city IDs and exploration settings.
+
+Build first, then start the origin and connector in separate terminals:
+
+```bash
+npm run build
+npm run serve
+cloudflared tunnel --config .local/tunnel.yml run latitude-explorer
+```
+
+The supplied Windows helper `scripts/start-remote.ps1` starts both processes hidden and reuses healthy local processes instead of duplicating them. Run it from PowerShell after a build to restart remote access. **This PC must remain powered on and awake.** The processes are not installed as a boot service and do not automatically restart after Windows reboots. Rebuilding updates what is served. For always-on hosting independent of this PC, use Cloudflare Pages above. If rebuilding while visitors are active, a previously open page may need a refresh to load the new hashed assets.
 
 Discovery results compare absolute latitude (`abs(abs(city.lat) - abs(bandLatitude))`) and always show both hemisphere groups, up to 36 ranked matches in each. For example, Kansas City can discover Melbourne within the default 100 mi latitude tolerance. The mirror switch controls only the globe ring. The selected city is excluded from its own results; minimum geographic separation applies to both groups and is measured from the selected city even when scrubbing the band. Switching MI/KM preserves both filters' physical distances. Near the equator, each city appears in only one hemisphere group. Population filtering still controls globe marker density separately.
 
@@ -79,6 +103,6 @@ Discovery results compare absolute latitude (`abs(abs(city.lat) - abs(bandLatitu
 
 `src/geo.mjs` owns geographic calculations; `src/GlobeView.jsx` isolates and lazily loads the renderer. The main application owns discovery state. The prominent latitude slider is the V1 scrubbing interaction: it is reliable on touch screens and keyboards and updates results and the globe together. Dragging the ring itself is deferred.
 
-The initial UI JavaScript is roughly 75 KB compressed. The WebGL module is loaded separately (roughly 550 KB compressed). City and boundary JSON together are about 1.3 MB uncompressed and load asynchronously. A modern browser with WebGL is required for the globe; other discovery controls remain available if renderer initialization fails.
+The initial UI JavaScript is roughly 80 KB compressed. The WebGL module is loaded separately (roughly 550 KB compressed). City and boundary JSON together are about 1.3 MB uncompressed; climate/context JSON adds about 1.15 MB uncompressed. These load asynchronously. A modern browser with WebGL is required for the globe; other discovery controls remain available if renderer initialization fails.
 
 GitHub Actions runs `npm ci`, the geographic/data tests, and the production build on pushes and pull requests.
